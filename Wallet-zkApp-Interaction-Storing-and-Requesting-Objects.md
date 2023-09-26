@@ -200,4 +200,4 @@ Losing access to credentials due to device failures or other reasons can disrupt
 
 #### Mitigation
 - **Secure Backups**: Allow users to backup their objects securely. Any backup process should maintain the same level of encryption and security as primary storage.
-- **Multi-factor Authentication**: Ensure recovery methods involve MFA to prevent unauthorized recovery attempts.
+- **Multi-factor Authentication**: Ensure recovery methods involve MFA to prevent unauthorized recovery attempts. 
