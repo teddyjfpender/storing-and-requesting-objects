@@ -6,7 +6,7 @@ This proposal details a mechanism for enhancing the interaction between zero-kno
 
 ## Motivation
 
-A robust integration between wallets and zkApps is essential for Mina's evolving ecosystem. It is necessary to create standards that capitalise on Mina's unique features such as client-side proving and recursive proving thereby potentially simplifying the experience for numerous protocol users. This is especially important when zkApps require arguments to either smart contracts or provable programs that do not exist on-chain nor are queryable, examples include interacting with applications that require proof objects from prior interactions, as well as applications that require verifiable credential proofs as arguments to smart contracts and provable programs. Extending the wallet Mina provider API for facilitating interactions with zkApps that have these or similar requirements can improve interaction between wallets and zkApps as well as allow zkApp developers to explore new idea-spaces for zkApp design and implementation.
+A robust integration between wallets and zkApps is essential for Mina's evolving ecosystem. It is necessary to create standards that capitalize on Mina's unique features such as client-side proving and recursive proving thereby potentially simplifying the experience for numerous protocol users. This is especially important when zkApps require arguments to either smart contracts or provable programs that do not exist on-chain nor are queryable, examples include interacting with applications that require proof objects from prior interactions, as well as applications that require verifiable credential proofs as arguments to smart contracts and provable programs. Extending the wallet Mina provider API for facilitating interactions with zkApps that have these or similar requirements can improve interaction between wallets and zkApps as well as allow zkApp developers to explore new idea-spaces for zkApp design and implementation.
 
 ## Specification
 In the Web3 application ecosystem, which includes decentralized applications (dapps) and zkApps, it's a norm for key management software, known as "wallets," to make their API accessible through a JavaScript object in a web page—often termed "the Provider."
@@ -53,7 +53,7 @@ IF provider is undefined
     STOP zkApp
 ```
 [1] `REQUEST`
-zkApp MUST request object storage by calling the `mina_storeObjects` RPC method on the provider exposed at `window`.mina. Calling this method MUST emit an event `message` that signifies the zkApp's initiation of the process to request the wallet to store an object and MAY trigger a user interface that allows the user to approve or reject object storage for a given zkApp. This method MUST return a Promise that is resolved with a boolean or rejected if no storage is available (e.g., the user rejected object storage).
+zkApp MUST request object storage by calling the `mina_storeObjects` RPC method on the provider exposed at `window.mina`. Calling this method MUST emit an event `message` that signifies the zkApp's initiation of the process to request the wallet to store an object and MAY trigger a user interface that allows the user to approve or reject object storage for a given zkApp. This method MUST return a Promise that is resolved with a boolean or rejected if no storage is available (e.g., the user rejected object storage).
 
  [2] `RESOLVE`
 The Promise returned when calling the `mina_storeObjects` RPC method MUST be resolved with a boolean. This must emit an event `message` indicating that the request to store the object has been approved and the promise has been resolved with a boolean.
@@ -140,7 +140,7 @@ The Promise returned when calling the `mina_requestObjects` RPC method MUST be r
 import {Mina, Proof} from "o1js";
 try {
     // Request object access if needed
-    const objects = await mina.request({method: 'mina_requestObjects', params: {issuer: "Example-KYC-Issuer", region: "EU"}});
+    const objects = await mina.request({method: 'mina_requestObjects', params: { issuer: "Example-KYC-Issuer", region: "EU" } });
     // objects are now exposed, format objects as desired
     const credentialKYC = KYCProof.fromJSON(objects[0])
     // add objects to zkApp transaction as arguments to contract methods
@@ -150,7 +150,7 @@ try {
     // prove transaction
     await transaction.prove().catch(err=>err)
    // request signing of the transaction
-    await main.request({method: ‘mina_signTransaction’, params: transaction)
+    await main.request({ method: 'mina_signTransaction', params: transaction })
    // send transaction
     mina.send('mina_sendTransaction', transaction)
 } catch (error) {
@@ -158,13 +158,38 @@ try {
 }
 ```
 
+## User Journey 
+
+In this example user journey, an `Issuer` attests that a public key (the `Subject`) has passed a KYC process and issues a wallet (the `Holder`) a credential. This credential is structured and has a `proof` field. This `proof` field is a JSON object containing a Kimchi proof, which is the result of executing a provable-program (often referred to as a circuit) using public and private inputs. The holder's wallet can then utilize the `proof` from this credential when constructing transactions, such as a KYC deposit transaction. The `proof` field can be used as an argument in contract or provable program methods. The attestation of the credential signifies that the holder has passed a KYC process. This attestation must be tightly integrated with the zkApp's contract or provable-program logic, ensuring, for instance, that the sender is indeed the subject or holder as specified in the credential. 
+
+For further understanding, consider the sequence diagram below, which outlines the user journey:
+
+```mermaid
+sequenceDiagram
+    Issuer->>Wallet (Holder): I attest you have passed a KYC process
+    Note right of Wallet (Holder): Store KYC Credential Object internally
+
+    Wallet (Holder)->> zkApp: Connect wallet
+    zkApp-->>Wallet (Holder): Connection Established
+
+    Wallet (Holder)->>zkApp: Click "deposit"
+    zkApp->>Wallet (Holder): Request KYC Credential Object Proof
+    Wallet (Holder)->>zkApp: Provide KYC Credential Object Proof
+
+    zkApp->>Wallet (Holder): Request Transaction Signing
+    Note right of Wallet (Holder): Prove and Sign Transaction internally
+    Wallet (Holder)->>Mina Network: Send Transaction
+```
+
+**Note: All interactions with the zkApp are done client-side**
+
 ## Backwards Compatibility
 
 As an extension to the existing Mina provider, this API does not affect the operation of existing APIs.
 
 ## Security Considerations
 
-The process of storing and exposing objects in the Mina ecosystem, as detailed in this proposal, introduces several security implications that must be carefully considered by implementors. The issues and mitations outlined here are suggestions for implementors to consider.
+The process of storing and exposing objects in the Mina ecosystem, as detailed in this proposal, introduces several security implications that must be carefully considered by implementors. The issues and mitigations outlined here are suggestions for implementors to consider.
 
 ### Unauthorized Access to Stored Objects
 
@@ -173,7 +198,7 @@ If an attacker gains unauthorized access to a user's wallet, they could retrieve
 
 #### Mitigation
 - **Encryption**: Ensure that all stored objects are encrypted at rest.
-- **Limited Lifetime**: Implementions could consider a mechanism where objects have a limited validity period, reducing the impact of potential breaches.
+- **Limited Lifetime**: Implementations could consider a mechanism where objects have a limited validity period, reducing the impact of potential breaches.
 
 ### Exposure to Malicious Applications
 
