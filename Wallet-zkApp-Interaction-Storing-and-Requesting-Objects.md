@@ -98,7 +98,7 @@ try {
                         }
                     }”
     // Request object stored by wallet
-    const stored = await mina.request({method: "mina_storeObjects", params: {object: storableObject}});
+    const stored = await mina.request({method: 'mina_storeObjects', params: {object: storableObject}});
 } catch (error) {
     // User denied storage access
 }
