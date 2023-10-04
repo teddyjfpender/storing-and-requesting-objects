@@ -2,14 +2,14 @@
 
 ## Abstract
 
-This proposal details a mechanism for enhancing the interaction between zero-knowledge applications (zkApps) and wallets in the Mina ecosystem. The main objective is to allow wallets to use and store data objects that can be used when interacting with zkApps. Storing data objects provided to the wallet by zkApps and providing data objects to zkApps that are stored or created in the wallet is necessary given Mina’s ability to perform client-side proving as well as Mina's zkApps requiring provable arguments in both contract and provable program methods. 
+This proposal details a mechanism for enhancing the interaction between zero-knowledge applications (zkApps) and wallets in the Mina ecosystem. The main objective is to allow wallets to use and store data objects that can be used when interacting with zkApps. Storing data objects provided to the wallet by zkApps and providing data objects to zkApps that are stored or created in the wallet is necessary given Mina’s ability to perform client-side proving as well as Mina's zkApps requiring provable arguments in both contract and provable program methods. It is important to note that the specification outlined in this document represents one variation of data sharing that is not censorship resistant, and does not ensure availability guarantees from the provider.
 
 ## Motivation
 
 A robust integration between wallets and zkApps is essential for Mina's evolving ecosystem. It is necessary to create standards that capitalize on Mina's unique features such as client-side proving and recursive proving thereby potentially simplifying the experience for numerous protocol users. This is especially important when zkApps require arguments to either smart contracts or provable programs that do not exist on-chain nor are queryable, examples include interacting with applications that require proof objects from prior interactions, as well as applications that require verifiable credential proofs as arguments to smart contracts and provable programs. Extending the wallet Mina provider API for facilitating interactions with zkApps that have these or similar requirements can improve interaction between wallets and zkApps as well as allow zkApp developers to explore new idea-spaces for zkApp design and implementation.
 
 ## Specification
-In the Web3 application ecosystem, which includes decentralized applications (dapps) and zkApps, it's a norm for key management software, known as "wallets," to make their API accessible through a JavaScript object in a web page—often termed "the Provider."
+In the Web3 application ecosystem, which includes decentralized applications (dapps) and zero-knowledge applications (zkApps), it's a norm for key management software, known as "wallets," to make their API accessible through a JavaScript object in a web page—often termed "the Provider."
 
 However, inconsistencies have arisen in Provider implementations across wallets. This proposal seeks to standardize a Mina Provider API to ensure continued wallet interoperability with zkApps. This specification assumes wallets already implement the minimal, event-driven APIs equivalent to EIP-1193 for Mina; this specification introduces new RPC methods and message event types.
 
@@ -226,3 +226,12 @@ Losing access to credentials due to device failures or other reasons can disrupt
 #### Mitigation
 - **Secure Backups**: Allow users to backup their objects securely. Any backup process should maintain the same level of encryption and security as primary storage.
 - **Multi-factor Authentication**: Ensure recovery methods involve MFA to prevent unauthorized recovery attempts.
+
+### Object Scoping and Collision Avoidance
+
+#### Issue
+There is a potential for multiple applications to request storing of objects with similar or identical identifiers exists, which could lead to one app accidentally or maliciously overwriting an object set by another app. This can lead to unintended data loss or misrepresentation.
+
+#### Mitigation
+- **Namespacing**: When storing objects, wallets should ensure each object is scoped or namespaced uniquely. This ensures that even if two different applications request to store objects with identical identifiers, they will not collide or overwrite each other. A wallet should communicate well to the user whether or not storing an object risks overwriting another.
+- **Audit Trails**: Maintain a record of all object storage, modification, and access activities. This could help in tracing any unexpected or unauthorized changes.
