@@ -26,11 +26,13 @@ Wallets should have a provider API parallel to EIP-1193 but tailored for Mina. T
 
     - **User Consent for Object Access**: Before a zkApp can access any object, explicit user approval is mandatory. 
     - **User Consent for Storing Objects**: Just as access is restricted, storage of any objects by the wallet requires the user's green light. It ensures that users are aware of what's being stored in their wallets, enhancing transparency.
+    - **User Consent for Attestation**: Explicit user approval is mandatory before the wallet can attest to any statement.
 
 #### Primary Functionalities:
 The proposed API should empower a Mina wallet to:
 - **Receive Objects**: Accept and store objects, whether they're verifiable credentials, proofs, or any other data.
 - **Request Objects**: Initiate requests to retrieve stored objects, facilitating interactions like transaction validations or data computations.
+- **Request Attestation**: Initiate requests to receive an attestation proof of a claim.
 
 ### Scenario: A Wallet Receiving Objects to Store
 #### `mina_storeObjects`
@@ -66,7 +68,10 @@ A wallet MUST adequately detail to the user what the zkApp is requesting the wal
 #### Example initialization - Request objects to be stored in the wallet
 
 ```ts
-import {Mina, Proof} from "o1js";
+import { Mina, Proof } from "o1js";
+
+const mina = window.mina;
+
 try {
     // The object to store
     const storableObject = “{ 
@@ -104,11 +109,11 @@ try {
 }
 ```
 
-### Scenario: Requesting Objects from a wallet
+### Scenario: Requesting Known Objects From a Wallet
 #### `mina_requestObjects`
 Providers in Mina-aware DOM settings should also offer `mina_requestObjects`, an RPC method. This method might present a user interface, letting users grant or deny object access for zkApps. The method returns a Promise, either resolving with an Array of objects or, if unavailable, rejecting with an Error.
 
-zkApps may require objects from a wallet (e.g. verifiable credentials, proofs), these objects may be relevant for interactions. To be able to provide them the wallet requires a new provider method with certain params. This should follow a regular pattern: 
+zkApps may require objects from a wallet (e.g. verifiable credentials, proofs), these objects may be relevant for interactions. To be able to provide the required objects, the wallet requires a new provider method with certain params. This should follow a regular pattern: 
 
 ```
 // Pseudocode
@@ -137,7 +142,10 @@ The Promise returned when calling the `mina_requestObjects` RPC method MUST be r
 #### Example initialization - request credentials by a specific issuer
 
 ```ts
-import {Mina, Proof} from "o1js";
+import { Mina, Proof } from "o1js";
+
+const mina = window.mina;
+
 try {
     // Request object access if needed
     const objects = await mina.request({method: 'mina_requestObjects', params: { issuer: "Example-KYC-Issuer", region: "EU" } });
@@ -155,6 +163,103 @@ try {
     mina.send('mina_sendTransaction', transaction)
 } catch (error) {
     // User denied object access
+}
+```
+
+### Scenario: Requesting Attestation From a Wallet
+#### `mina_requestAttestation`
+Providers in Mina-aware DOM settings should also offer `mina_requestAttestation`, an RPC method for attestation scenarios. The purpose of this method is to allow zkApps to request attestation based on a provable program, where the wallet can attest to certain data (like credentials or other known data) by constructing the proof needed in on-chain scenarios (e.g. a smart contract method) or off-chain scenarios without exposing the actual credential to the zkApp. This method must present a user interface, allowing users to confirm or reject the attestation request. The method returns a Promise, either resolving with the desired proof or, if not possible, rejecting with an Error.
+
+A wallet exposing a credential's proof field to the browser when constructing a transaction specific to a smart contract method is one means of interacting with a smart contract, the underlying assumption is that the wallet already knows of a credential containing the method's required proof. However the wallet might know of a credential (or other claims about themselves) but not currently know of a proof required by the smart contract method. In these scenarios the wallet will have to execute a provable-program locally to produce the proof required by the smart contract method. Instead of attestation occurring in the transaction signing only, attestation can also occur in-part by constructing inputs for a provable program and the execution of a provable program. This gives rise to both on-chain and off-chain use-cases. Examples of this attestation are similar to verifiable presentations, including selective disclosure of credential properties (e.g. only proving the credentials claim the subject's age is greater than 21) and accumulation of many proofs together (e.g. proving that the subject has been issued KYC credentials from multiple regions). This flexibility does not come without attack vectors. Specifically some provable programs may require use of the subject's private key for attesting to certain data. It is not recommended and highly discouraged to use a private key as a public input to a provable-program, usage of the wallet's private key should be limited to signing and producing signatures which can be used as inputs (public or private) to provable programs.
+
+The request sent to the wallet must utilize the `params` field to communicate what it expects from the wallet. In order to produce the desired proof for either on- or off-chain usage the `params` field must detail what provable program(s) are expected to be executed, and what must be attested to. This should follow a regular pattern: 
+```
+// Pseudocode
+START interaction
+IF provider is defined
+    REQUEST[1] attestation
+    IF user approves
+        RESOLVE[2] attestation
+        CONTINUE zkProvableProgram
+    IF user rejects
+        REJECT[3] attestation
+        STOP interaction
+IF provider is undefined
+    STOP interaction
+```
+
+[1] REQUEST
+The requester MUST request attestation by calling the `mina_requestAttestation` RPC method on the provider exposed at window.mina. Calling this method MUST trigger a user interface allowing the user to approve or reject the attestation request. This method MUST return a Promise that is resolved with the desired proof or rejected if the attestation cannot be produced.
+
+[2] RESOLVE
+The Promise returned when calling the `mina_requestAttestation` RPC method MUST be resolved with the desired proof. This should emit an event message indicating that the attestation request has been approved and the promise has been resolved with the desired proof.
+
+[3] REJECT
+The Promise returned when calling the `mina_requestAttestation` RPC method MUST be rejected with an informative `Error` if the attestation cannot be produced. This should emit an event message indicating that the attestation request has been denied, and the promise is rejected with an error.
+
+#### Example On-Chain Usage -- request attestation using a provable program for royalties claim
+```ts
+import { Mina, Proof } from "o1js";
+
+const mina = window.mina;
+
+try {
+    // Request attestation - the wallet should run the provable program internally
+    const attestationProof = await mina.request({ method: 'mina_requestAttestation', params: { program: "ProvableProgramID", inputs: ["input1", "input2"] } });
+    
+    // Use attestation proof in the zkApp transaction
+    let transaction = await Mina.transaction(() => {
+        new RoyaltiesZkApp(zkappAddress).claim(attestationProof);
+    });
+    // prove transaction
+    await transaction.prove().catch(err=>err)
+    // request signing of the transaction
+    await main.request({ method: 'mina_signTransaction', params: transaction })
+    // send transaction
+    mina.send('mina_sendTransaction', transaction)
+} catch (error) {
+    // User denied attestation request or an error occurred
+}
+```
+
+### Example Off-Chain Usage -- request attestation using a provable program for Single-Sign-On (SSO)
+```ts
+import { Mina } from "o1js";
+
+const mina = window.mina;
+
+try {
+    // Request attestation - the wallet should run the provable program internally
+    const attestationProof = await mina.request({
+        method: 'mina_requestAttestation',
+        params: {
+            program: "ProvableProgramForSSO",
+            inputs: ["userIdentifier", "serviceDomain"]
+        }
+    });
+    
+    // Send the attestation proof to the SSO service for verification
+    const ssoResponse = await fetch('https://sso.example.com/verify', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ proof: attestationProof })
+    });
+
+    const { authorized, token } = await ssoResponse.json();
+
+    if (authorized) {
+        // The user is authenticated and authorized. Store the token or take necessary actions.
+        localStorage.setItem('sso_token', token);
+        alert('You are now signed in!');
+    } else {
+        throw new Error('SSO authorization failed.');
+    }
+} catch (error) {
+    // Either the user denied attestation request or some other error occurred
+    console.error('Error:', error.message);
+    alert('Failed to authenticate via Single-Sign-On.');
 }
 ```
 
