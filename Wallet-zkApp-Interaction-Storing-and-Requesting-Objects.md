@@ -1,4 +1,4 @@
-# Wallet-zkApp Interaction - Storing and Requesting Objects
+# Wallet-zkApp Interaction - Storing & Requesting Objects, and Attestation
 
 ## Abstract
 
